@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Robin Appelman <robin@icewind.nl>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+rufi = { version = "0.1", git = "https://github.com/icewind1991/rufi" }
+main_error = "0.1.0"
+tokio = { version = "0.2.13", features = ["macros"] }
+glob = "0.3.0"
+dirs = "2.0.2"
