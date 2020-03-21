@@ -1,13 +1,13 @@
+use dirs::home_dir;
 use main_error::MainError;
+use rufi::{EventsLoop, MenuApp, Renderer};
+use std::collections::HashMap;
+use std::env;
 use std::io::Write;
 use std::os::unix::net::UnixStream;
-use rufi::{MenuApp, Renderer, EventsLoop};
-use std::time::Duration;
-use std::env;
-use std::collections::HashMap;
-use dirs::home_dir;
-use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Arc;
+use std::time::Duration;
 
 pub const WIN_W: u32 = 600;
 
@@ -16,7 +16,7 @@ async fn main() -> Result<(), MainError> {
     let args: Vec<String> = env::args().skip(1).collect();
     let should_type = match args.first() {
         Some(arg) => arg == "--type",
-        None => false
+        None => false,
     };
 
     let mut env: HashMap<String, String> = env::vars().collect();
@@ -26,7 +26,16 @@ async fn main() -> Result<(), MainError> {
         format!("{}/.password-store/", home)
     });
 
-    let files: Vec<PathBuf> = glob::glob(&format!("{}**/*.gpg", prefix))?.collect::<Result<Vec<PathBuf>, _>>()?;
+    let files: Vec<String> = glob::glob(&format!("{}**/*.gpg", prefix))?
+        .filter_map(|res| res.ok())
+        .filter_map(|path| {
+            path.to_str().map(|s| {
+                s.trim_start_matches(&prefix)
+                    .trim_end_matches(".gpg")
+                    .to_string()
+            })
+        })
+        .collect();
 
     let events_loop = EventsLoop::new();
 
@@ -34,22 +43,29 @@ async fn main() -> Result<(), MainError> {
 
     let app = MenuApp::new(WIN_W, events_loop);
 
+    let files = Arc::new(files);
+
     let item = {
         app.main_loop(renderer, move |query| {
-            let result = files.iter().filter_map(|path| {
-                let path_str = path.as_os_str().to_str().unwrap_or_default();
-                if path_str.contains(&query) {
-                    Some(path_str.trim_start_matches(&prefix).trim_end_matches(".gpg").to_string())
-                } else {
-                    None
-                }
-            }).collect();
+            let files = files.clone();
             async move {
                 tokio::time::delay_for(Duration::from_millis(100)).await; // debounce
+
+                let result = files
+                    .iter()
+                    .filter_map(|path| {
+                        if path.contains(&query) {
+                            Some(path.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
                 result
             }
         })
-            .await
+        .await
     };
 
     let item = match item {
