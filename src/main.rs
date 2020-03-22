@@ -1,6 +1,6 @@
 use dirs::home_dir;
 use main_error::MainError;
-use rufi::{EventsLoop, MenuApp, Renderer};
+use rufi::MenuApp;
 use std::collections::HashMap;
 use std::env;
 use std::io::Write;
@@ -11,8 +11,7 @@ use std::time::Duration;
 
 pub const WIN_W: u32 = 600;
 
-#[tokio::main]
-async fn main() -> Result<(), MainError> {
+fn main() -> Result<(), MainError> {
     let args: Vec<String> = env::args().skip(1).collect();
     let should_type = match args.first() {
         Some(arg) => arg == "--type",
@@ -37,35 +36,24 @@ async fn main() -> Result<(), MainError> {
         })
         .collect();
 
-    let events_loop = EventsLoop::new();
-
-    let renderer = Renderer::new(&events_loop, "WPass", WIN_W);
-
-    let app = MenuApp::new(WIN_W, events_loop);
+    let app = MenuApp::new(WIN_W, "WPass");
 
     let files = Arc::new(files);
 
     let item = {
-        app.main_loop(renderer, move |query| {
-            let files = files.clone();
-            async move {
-                tokio::time::delay_for(Duration::from_millis(100)).await; // debounce
-
-                let result = files
-                    .iter()
-                    .filter_map(|path| {
-                        if path.contains(&query) {
-                            Some(path.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                result
-            }
+        app.main_loop(move |query| {
+            files
+                .iter()
+                .filter_map(|path| {
+                    if path.contains(&query) {
+                        Some(path.clone())
+                    } else {
+                        None
+                    }
+                })
+                .take(15)
+                .collect()
         })
-        .await
     };
 
     let item = match item {
